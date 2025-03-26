@@ -17,7 +17,7 @@ class FlowPolicyNetwork(nn.Module):
         n_actions,
         h1_size,
         h2_size,
-        n_flows=2,
+        n_flows=5,
         learning_rate=3e-4,
         min_action=-1,
         max_action=1,
@@ -41,7 +41,6 @@ class FlowPolicyNetwork(nn.Module):
         self.mean_layer = nn.Linear(h2_size, n_actions)
         self.log_std_layer = nn.Linear(h2_size, n_actions)
 
-        # Build a CompositeTransform of multiple MaskedAffineAutoregressiveTransform
         transforms = []
         for _ in range(n_flows):
             transforms.append(
