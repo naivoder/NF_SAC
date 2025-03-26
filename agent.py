@@ -156,7 +156,7 @@ class SACAgent(torch.nn.Module):
         self.V.optimizer.zero_grad()
         value_targets = critic_value - log_probs
         value_loss = 0.5 * torch.nn.functional.mse_loss(values, value_targets)
-        value_loss.backward()
+        value_loss.backward(retain_graph=True)
         self.V.optimizer.step()
 
     def _actor_loss(self, states):
@@ -169,7 +169,7 @@ class SACAgent(torch.nn.Module):
         # actor loss
         actor_loss = torch.mean(log_probs - critic_value)
         self.Actor.optimizer.zero_grad()
-        actor_loss.backward()
+        actor_loss.backward(retain_graph=False)
         self.Actor.optimizer.step()
 
     def update_network_params(self, tau=None):
