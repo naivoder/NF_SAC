@@ -108,7 +108,9 @@ def save_best_version(env_name, agent, seeds=100):
             best_total_reward = total_reward
             best_frames = frames
 
-    utils.save_animation(best_frames, f"environments/{env_name}.gif")
+    utils.save_animation(
+        best_frames, f"environments/{env_name}-norm={str(agent.norm_flow)}.gif"
+    )
 
 
 if __name__ == "__main__":
