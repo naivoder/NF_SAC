@@ -1,0 +1,9 @@
+torch
+matplotlib
+numpy
+swig
+box2d
+gymnasium[all]
+imageio
+nflows
+pandas
