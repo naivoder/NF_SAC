@@ -6,8 +6,9 @@ import os
 import warnings
 from argparse import ArgumentParser
 import pandas as pd
+import wandb
 
-warnings.filterwarnings("ignore", category=DeprecationWarning)
+warnings.simplefilter("ignore")
 
 environments = [
     "BipedalWalker-v3",
@@ -28,7 +29,7 @@ environments = [
 ]
 
 
-def run_sac(env_name, n_games=10000, norm_flow=False):
+def run_sac(env_name, n_games=10000, norm_flow=False, wandb_key=None):
     env = gym.make(env_name, render_mode="rgb_array")
 
     agent = SACAgent(
@@ -40,6 +41,13 @@ def run_sac(env_name, n_games=10000, norm_flow=False):
         batch_size=256,
         norm_flow=norm_flow,
     )
+
+    if wandb_key:
+        with open(wandb_key, "r") as f:
+            wandb_key = f.read().strip()
+        wandb.login(key=wandb_key)
+        run_name = f"{env_name}-{'NF' if norm_flow else 'SAC'}"
+        wandb.init(project="NF-SAC", name=run_name, config=locals())
 
     best_score = -float("inf")
     history = []
@@ -68,12 +76,20 @@ def run_sac(env_name, n_games=10000, norm_flow=False):
 
         metrics.append(
             {
-                "episode": i + 1,
                 "score": score,
                 "average_score": avg_score,
                 "best_score": best_score,
             }
         )
+
+        if wandb_key:
+            wandb.log(
+                {
+                    "score": score,
+                    "average_score": avg_score,
+                    "best_score": best_score,
+                }
+            )
 
         print(
             f"[{env_name} Episode {i + 1:04}/{n_games}]    Score = {score:7.4f}    Average = {avg_score:7.4f}",
@@ -121,12 +137,15 @@ if __name__ == "__main__":
     parser.add_argument(
         "-n",
         "--n_games",
-        default=10000,
+        default=1000,
         type=int,
         help="Number of episodes (games) to run during training",
     )
     parser.add_argument(
         "--norm_flow", action="store_true", help="Use normalizing flow-based policy"
+    )
+    parser.add_argument(
+        "--wandb_key", type=str, default=None, help="Path to WandB API key text file"
     )
     args = parser.parse_args()
 
@@ -136,7 +155,7 @@ if __name__ == "__main__":
 
     if args.env:
         history, metrics, best_score, trained_agent = run_sac(
-            args.env, args.n_games, args.norm_flow
+            args.env, args.n_games, args.norm_flow, args.wandb_key
         )
         utils.plot_running_avg(history, args.env)
         df = pd.DataFrame(metrics)
@@ -145,7 +164,7 @@ if __name__ == "__main__":
     else:
         for env_name in environments:
             history, metrics, best_score, trained_agent = run_sac(
-                env_name, args.n_games, args.norm_flow
+                env_name, args.n_games, args.norm_flow, args.wandb_key
             )
             utils.plot_running_avg(history, env_name)
             df = pd.DataFrame(metrics)

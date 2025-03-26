@@ -7,3 +7,4 @@ gymnasium[all]
 imageio
 nflows
 pandas
+wandb
