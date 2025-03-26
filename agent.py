@@ -44,7 +44,7 @@ class SACAgent(torch.nn.Module):
             self.h1_size,
             self.h2_size,
             learning_rate=self.lr,
-            chkpt_path=f"weights/{env_name}_critic_1.pt",
+            chkpt_path=f"weights/{env_name}_critic_1_norm={str(norm_flow)}.pt",
         )
         self.Q2 = networks.CriticNetwork(
             self.input_dims,
@@ -52,21 +52,21 @@ class SACAgent(torch.nn.Module):
             self.h1_size,
             self.h2_size,
             learning_rate=self.lr,
-            chkpt_path=f"weights/{env_name}_critic_2.pt",
+            chkpt_path=f"weights/{env_name}_critic_2_norm={str(norm_flow)}.pt",
         )
         self.V = networks.ValueNetwork(
             self.input_dims,
             self.h1_size,
             self.h2_size,
             learning_rate=self.lr,
-            chkpt_path=f"weights/{env_name}_value.pt",
+            chkpt_path=f"weights/{env_name}_value_norm={str(norm_flow)}.pt",
         )
         self.V_target = networks.ValueNetwork(
             self.input_dims,
             self.h1_size,
             self.h2_size,
             learning_rate=self.lr,
-            chkpt_path=f"weights/{env_name}_value_target.pt",
+            chkpt_path=f"weights/{env_name}_value_target_norm={str(norm_flow)}.pt",
         )
         if norm_flow:
             self.Actor = FlowPolicyNetwork(
@@ -77,7 +77,7 @@ class SACAgent(torch.nn.Module):
                 min_action=self.min_action,
                 max_action=self.max_action,
                 learning_rate=self.lr,
-                chkpt_path=f"weights/{env_name}_flow_actor.pt",
+                chkpt_path=f"weights/{env_name}_flow_actor_norm={str(norm_flow)}.pt",
             )
         else:
             self.Actor = networks.ActorNetwork(
@@ -88,7 +88,7 @@ class SACAgent(torch.nn.Module):
                 learning_rate=self.lr,
                 min_action=self.min_action,
                 max_action=self.max_action,
-                chkpt_path=f"weights/{env_name}_actor.pt",
+                chkpt_path=f"weights/{env_name}_actor_norm={str(norm_flow)}.pt",
             )
 
         self.update_network_params(tau=1)
