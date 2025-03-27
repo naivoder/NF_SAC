@@ -29,13 +29,18 @@ environments = [
 ]
 
 
-def run_sac(env_name, n_games=10000, norm_flow=False, wandb_key=None):
-    env = gym.make(env_name, render_mode="rgb_array")
+def make_env(env_name):
+    """Returns a function that creates an environment instance."""
+    return lambda: gym.make(env_name)
+
+
+def run_sac(env_name, n_games=10000, norm_flow=False, wandb_key=None, num_envs=8):
+    env = gym.vector.AsyncVectorEnv([make_env(env_name) for _ in range(num_envs)])
 
     agent = SACAgent(
         env_name,
-        env.observation_space.shape,
-        env.action_space,
+        env.single_observation_space.shape,
+        env.single_action_space,
         tau=5e-3,
         reward_scale=10,
         batch_size=256,
@@ -49,54 +54,61 @@ def run_sac(env_name, n_games=10000, norm_flow=False, wandb_key=None):
         run_name = f"{env_name}-{'NF' if norm_flow else 'SAC'}"
         wandb.init(project="NF-SAC", name=run_name, config=locals())
 
-    best_score = -float("inf")
-    history = []
+    best_avg_score = -float("inf")
+    scores = []
     metrics = []
+    episode_scores = np.zeros(num_envs)
+    states, _ = env.reset()
 
-    for i in range(n_games):
-        state, _ = env.reset()
+    while len(scores) < n_games:
 
-        term, trunc, score = False, False, 0
-        while not term and not trunc:
-            action = agent.choose_action(state)
-            next_state, reward, term, trunc, _ = env.step(action)
+        actions = np.array([agent.choose_action(state) for state in states])
+        next_states, rewards, term, trunc, _ = env.step(actions)
 
-            agent.store_transition(state, action, reward, next_state, term or trunc)
-            agent.learn()
+        for j in range(num_envs):
+            episode_scores[j] += rewards[j]
+            agent.store_transition(
+                states[j],
+                actions[j],
+                rewards[j],
+                next_states[j],
+                term[j] | trunc[j],
+            )
+            if term[j] or trunc[j]:  # If an episode ends
+                scores.append(episode_scores[j])  # Save final score
+                episode_scores[j] = 0  # Reset score for new episode
 
-            score += reward
-            state = next_state
+                avg_score = np.mean(scores[:-100] if len(scores) > 100 else scores)
+                best_score = max(scores) if scores else 0
 
-        history.append(score)
-        avg_score = np.mean(history[-100:])
+                if avg_score > best_avg_score:
+                    best_avg_score = avg_score
+                    agent.save_checkpoints()
 
-        if avg_score > best_score:
-            best_score = avg_score
-            agent.save_checkpoints()
-
-        metrics.append(
-            {
-                "score": score,
-                "average_score": avg_score,
-                "best_score": best_score,
-            }
-        )
-
-        if wandb_key:
-            wandb.log(
-                {
-                    "score": score,
+                results = {
+                    "score": scores[-1],
                     "average_score": avg_score,
                     "best_score": best_score,
                 }
-            )
 
-        print(
-            f"[{env_name} Episode {i + 1:04}/{n_games}]    Score = {score:7.4f}    Average = {avg_score:7.4f}",
-            end="\r",
-        )
+                metrics.append(results)
 
-    return history, metrics, best_score, agent
+                if wandb_key:
+                    wandb.log(results)
+
+                print(
+                    f"[{env_name} Episode {len(scores):04}/{n_games}]  Score = {scores[-1]}  Average Score = {avg_score:7.4f}",
+                    end="\r",
+                )
+
+            if len(scores) >= n_games:
+                break
+
+            agent.learn()
+
+        states = next_states
+
+    return history, metrics, best_avg_score, agent
 
 
 def save_best_version(env_name, agent, seeds=100):
