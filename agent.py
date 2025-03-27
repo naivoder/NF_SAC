@@ -19,6 +19,7 @@ class SACAgent(torch.nn.Module):
         h2_size=256,
         mem_size=int(1e6),
         norm_flow=False,
+        num_flows=2,
     ):
         super(SACAgent, self).__init__()
         self.input_dims = input_dims
@@ -34,6 +35,12 @@ class SACAgent(torch.nn.Module):
         self.h2_size = h2_size
         self.mem_size = mem_size
         self.norm_flow = norm_flow
+        self.num_flows = num_flows
+
+        if norm_flow:
+            save_str = f"_NF-{num_flows}"
+        else:
+            save_str = "_SAC"
 
         self.memory = memory.ReplayBuffer(
             self.input_dims, self.n_actions, self.mem_size
@@ -45,7 +52,7 @@ class SACAgent(torch.nn.Module):
             self.h1_size,
             self.h2_size,
             learning_rate=self.lr,
-            chkpt_path=f"weights/{env_name}_critic_1_norm={str(norm_flow)}.pt",
+            chkpt_path=f"weights/{env_name}_critic_1{save_str}.pt",
         )
         self.Q2 = networks.CriticNetwork(
             self.input_dims,
@@ -53,21 +60,21 @@ class SACAgent(torch.nn.Module):
             self.h1_size,
             self.h2_size,
             learning_rate=self.lr,
-            chkpt_path=f"weights/{env_name}_critic_2_norm={str(norm_flow)}.pt",
+            chkpt_path=f"weights/{env_name}_critic_2{save_str}.pt",
         )
         self.V = networks.ValueNetwork(
             self.input_dims,
             self.h1_size,
             self.h2_size,
             learning_rate=self.lr,
-            chkpt_path=f"weights/{env_name}_value_norm={str(norm_flow)}.pt",
+            chkpt_path=f"weights/{env_name}_value{save_str}.pt",
         )
         self.V_target = networks.ValueNetwork(
             self.input_dims,
             self.h1_size,
             self.h2_size,
             learning_rate=self.lr,
-            chkpt_path=f"weights/{env_name}_value_target_norm={str(norm_flow)}.pt",
+            chkpt_path=f"weights/{env_name}_value_target{save_str}.pt",
         )
         if norm_flow:
             self.Actor = FlowPolicyNetwork(
@@ -75,10 +82,11 @@ class SACAgent(torch.nn.Module):
                 self.n_actions,
                 self.h1_size,
                 self.h2_size,
+                n_flows=self.num_flows,
                 min_action=self.min_action,
                 max_action=self.max_action,
                 learning_rate=self.lr,
-                chkpt_path=f"weights/{env_name}_flow_actor_norm={str(norm_flow)}.pt",
+                chkpt_path=f"weights/{env_name}_flow_actor{save_str}.pt",
             )
         else:
             self.Actor = networks.ActorNetwork(
@@ -89,7 +97,7 @@ class SACAgent(torch.nn.Module):
                 learning_rate=self.lr,
                 min_action=self.min_action,
                 max_action=self.max_action,
-                chkpt_path=f"weights/{env_name}_actor_norm={str(norm_flow)}.pt",
+                chkpt_path=f"weights/{env_name}_actor{save_str}.pt",
             )
 
         self.update_network_params(tau=1)

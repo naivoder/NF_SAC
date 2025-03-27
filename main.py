@@ -7,6 +7,7 @@ import warnings
 from argparse import ArgumentParser
 import pandas as pd
 import wandb
+from tqdm import tqdm
 
 warnings.simplefilter("ignore")
 
@@ -18,12 +19,12 @@ environments = [
     "HalfCheetah-v4",
     "Hopper-v4",
     "Humanoid-v4",
-    "LunarLanderContinuous-v2",
+    "LunarLanderContinuous-v3",
     "HumanoidStandup-v4",
     "InvertedDoublePendulum-v4",
     "InvertedPendulum-v4",
-    "Pusher-v4",
-    "Reacher-v4",
+    "Pusher-v5",
+    "Reacher-v5",
     "Swimmer-v3",
     "Walker2d-v4",
 ]
@@ -34,37 +35,43 @@ def make_env(env_name):
     return lambda: gym.make(env_name)
 
 
-def run_sac(env_name, n_games=10000, norm_flow=False, wandb_key=None, num_envs=16):
-    env = gym.vector.AsyncVectorEnv([make_env(env_name) for _ in range(num_envs)])
+def run_sac(args):
+    env = gym.vector.AsyncVectorEnv([make_env(args.env) for _ in range(args.num_envs)])
 
     agent = SACAgent(
-        env_name,
+        args.env,
         env.single_observation_space.shape,
         env.single_action_space,
         tau=5e-3,
         reward_scale=10,
         batch_size=2048,
-        norm_flow=norm_flow,
+        norm_flow=args.norm_flow,
+        num_flows=args.num_flows,
     )
+
+    if args.norm_flow:
+        save_str = f"NF-{args.num_flows}"
+    else:
+        save_str = "SAC"
 
     if wandb_key:
         with open(wandb_key, "r") as f:
             wandb_key = f.read().strip()
         wandb.login(key=wandb_key)
-        run_name = f"{env_name}-{'NF' if norm_flow else 'SAC'}"
+        run_name = f"{args.env}-{save_str}"
         wandb.init(project="NF-SAC", name=run_name, config=locals())
 
     best_avg_score = -float("inf")
     scores = []
-    episode_scores = np.zeros(num_envs)
+    episode_scores = np.zeros(args.num_envs)
     states, _ = env.reset()
 
-    while len(scores) < n_games:
+    while len(scores) < args.n_games:
 
         actions = np.array([agent.choose_action(state) for state in states])
         next_states, rewards, term, trunc, _ = env.step(actions)
 
-        for j in range(num_envs):
+        for j in range(args.num_envs):
             episode_scores[j] += rewards[j]
             agent.store_transition(
                 states[j],
@@ -94,27 +101,27 @@ def run_sac(env_name, n_games=10000, norm_flow=False, wandb_key=None, num_envs=1
                     )
 
                 print(
-                    f"[{env_name} Episode {len(scores):04}/{n_games}]  Score = {scores[-1]:.2f}  Average Score = {avg_score:7.2f}",
+                    f"[{args.env} Episode {len(scores):04}/{args.n_games}]  Score = {scores[-1]:.2f}  Average Score = {avg_score:7.2f}",
                     end="\r",
                 )
 
-            if len(scores) >= n_games:
+            if len(scores) >= args.n_games:
                 break
 
             agent.learn()
 
         states = next_states
 
-    return agent
+    return agent, save_str
 
 
-def save_best_version(env_name, agent, seeds=10):
+def save_best_version(env_name, agent, save_str, seeds=10):
     agent.load_checkpoints()
 
     best_total_reward = float("-inf")
     best_frames = None
 
-    for _ in range(seeds):
+    for _ in tqdm(range(seeds)):
         env = gym.make(env_name, render_mode="rgb_array")
 
         frames = []
@@ -133,9 +140,7 @@ def save_best_version(env_name, agent, seeds=10):
             best_total_reward = total_reward
             best_frames = frames
 
-    utils.save_animation(
-        best_frames, f"environments/{env_name}-norm={str(agent.norm_flow)}.gif"
-    )
+    utils.save_animation(best_frames, f"environments/{env_name}-{save_str}.gif")
 
 
 if __name__ == "__main__":
@@ -144,30 +149,37 @@ if __name__ == "__main__":
         "-e", "--env", default=None, help="Environment name from Gymnasium"
     )
     parser.add_argument(
-        "-n",
         "--n_games",
         default=1000,
         type=int,
         help="Number of episodes (games) to run during training",
     )
     parser.add_argument(
+        "--num_envs",
+        default=16,
+        type=int,
+        help="Number of environments to run in parallel",
+    )
+    parser.add_argument(
         "--norm_flow", action="store_true", help="Use normalizing flow-based policy"
+    )
+    parser.add_argument(
+        "--num_flows", default=2, type=int, help="Number of flows in the policy"
     )
     parser.add_argument(
         "--wandb_key", type=str, default=None, help="Path to WandB API key text file"
     )
     args = parser.parse_args()
 
-    for fname in ["metrics", "environments", "weights"]:
+    for fname in ["environments", "weights"]:
         if not os.path.exists(fname):
             os.makedirs(fname)
 
     if args.env:
-        trained_agent = run_sac(args.env, args.n_games, args.norm_flow, args.wandb_key)
-        save_best_version(args.env, trained_agent)
+        trained_agent, save_str = run_sac(args)
+        save_best_version(args.env, trained_agent, save_str)
     else:
         for env_name in environments:
-            trained_agent = run_sac(
-                env_name, args.n_games, args.norm_flow, args.wandb_key
-            )
-            save_best_version(env_name, trained_agent)
+            args.env = env_name
+            trained_agent, save_str = run_sac(args)
+            save_best_version(env_name, trained_agent, save_str)
