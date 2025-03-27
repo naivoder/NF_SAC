@@ -12,21 +12,21 @@ from tqdm import tqdm
 warnings.simplefilter("ignore")
 
 environments = [
-    "BipedalWalker-v3",
     "Pendulum-v1",
-    "MountainCarContinuous-v0",
-    "Ant-v4",
-    "HalfCheetah-v4",
-    "Hopper-v4",
-    "Humanoid-v4",
-    "LunarLanderContinuous-v3",
-    "HumanoidStandup-v4",
-    "InvertedDoublePendulum-v4",
     "InvertedPendulum-v4",
-    "Pusher-v5",
+    "InvertedDoublePendulum-v4",
+    "MountainCarContinuous-v0",
     "Reacher-v5",
     "Swimmer-v3",
+    "Pusher-v5",
+    "LunarLanderContinuous-v3",
+    "BipedalWalker-v3",
+    "Hopper-v4",
     "Walker2d-v4",
+    "HalfCheetah-v4",
+    "Ant-v4",
+    "Humanoid-v4",
+    "HumanoidStandup-v4",
 ]
 
 
@@ -44,7 +44,7 @@ def run_sac(args):
         env.single_action_space,
         tau=5e-3,
         reward_scale=10,
-        batch_size=2048,
+        batch_size=256,
         norm_flow=args.norm_flow,
         num_flows=args.num_flows,
     )
@@ -108,10 +108,12 @@ def run_sac(args):
             if len(scores) >= args.n_games:
                 break
 
-            agent.learn()
+        agent.learn()
 
         states = next_states
 
+    if args.wandb_key:
+        wandb.finish()
     return agent, save_str
 
 
@@ -150,13 +152,13 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--n_games",
-        default=1000,
+        default=2000,
         type=int,
         help="Number of episodes (games) to run during training",
     )
     parser.add_argument(
         "--num_envs",
-        default=16,
+        default=8,
         type=int,
         help="Number of environments to run in parallel",
     )
