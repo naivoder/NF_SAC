@@ -17,7 +17,7 @@ class FlowPolicyNetwork(nn.Module):
         n_actions,
         h1_size,
         h2_size,
-        n_flows=5,
+        n_flows=2,
         learning_rate=3e-4,
         min_action=-1,
         max_action=1,

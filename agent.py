@@ -33,6 +33,7 @@ class SACAgent(torch.nn.Module):
         self.h1_size = h1_size
         self.h2_size = h2_size
         self.mem_size = mem_size
+        self.norm_flow = norm_flow
 
         self.memory = memory.ReplayBuffer(
             self.input_dims, self.n_actions, self.mem_size

@@ -34,7 +34,7 @@ def make_env(env_name):
     return lambda: gym.make(env_name)
 
 
-def run_sac(env_name, n_games=10000, norm_flow=False, wandb_key=None, num_envs=8):
+def run_sac(env_name, n_games=10000, norm_flow=False, wandb_key=None, num_envs=16):
     env = gym.vector.AsyncVectorEnv([make_env(env_name) for _ in range(num_envs)])
 
     agent = SACAgent(
@@ -43,7 +43,7 @@ def run_sac(env_name, n_games=10000, norm_flow=False, wandb_key=None, num_envs=8
         env.single_action_space,
         tau=5e-3,
         reward_scale=10,
-        batch_size=256,
+        batch_size=2048,
         norm_flow=norm_flow,
     )
 
@@ -56,7 +56,6 @@ def run_sac(env_name, n_games=10000, norm_flow=False, wandb_key=None, num_envs=8
 
     best_avg_score = -float("inf")
     scores = []
-    metrics = []
     episode_scores = np.zeros(num_envs)
     states, _ = env.reset()
 
@@ -78,26 +77,24 @@ def run_sac(env_name, n_games=10000, norm_flow=False, wandb_key=None, num_envs=8
                 scores.append(episode_scores[j])  # Save final score
                 episode_scores[j] = 0  # Reset score for new episode
 
-                avg_score = np.mean(scores[:-100] if len(scores) > 100 else scores)
+                avg_score = np.mean(scores[-100:] if len(scores) > 100 else scores)
                 best_score = max(scores) if scores else 0
 
                 if avg_score > best_avg_score:
                     best_avg_score = avg_score
                     agent.save_checkpoints()
 
-                results = {
-                    "score": scores[-1],
-                    "average_score": avg_score,
-                    "best_score": best_score,
-                }
-
-                metrics.append(results)
-
                 if wandb_key:
-                    wandb.log(results)
+                    wandb.log(
+                        {
+                            "score": scores[-1],
+                            "average_score": avg_score,
+                            "best_score": best_score,
+                        }
+                    )
 
                 print(
-                    f"[{env_name} Episode {len(scores):04}/{n_games}]  Score = {scores[-1]}  Average Score = {avg_score:7.4f}",
+                    f"[{env_name} Episode {len(scores):04}/{n_games}]  Score = {scores[-1]:.2f}  Average Score = {avg_score:7.2f}",
                     end="\r",
                 )
 
@@ -108,10 +105,10 @@ def run_sac(env_name, n_games=10000, norm_flow=False, wandb_key=None, num_envs=8
 
         states = next_states
 
-    return history, metrics, best_avg_score, agent
+    return agent
 
 
-def save_best_version(env_name, agent, seeds=100):
+def save_best_version(env_name, agent, seeds=10):
     agent.load_checkpoints()
 
     best_total_reward = float("-inf")
@@ -166,19 +163,11 @@ if __name__ == "__main__":
             os.makedirs(fname)
 
     if args.env:
-        history, metrics, best_score, trained_agent = run_sac(
-            args.env, args.n_games, args.norm_flow, args.wandb_key
-        )
-        utils.plot_running_avg(history, args.env)
-        df = pd.DataFrame(metrics)
-        df.to_csv(f"metrics/{args.env}_metrics.csv", index=False)
+        trained_agent = run_sac(args.env, args.n_games, args.norm_flow, args.wandb_key)
         save_best_version(args.env, trained_agent)
     else:
         for env_name in environments:
-            history, metrics, best_score, trained_agent = run_sac(
+            trained_agent = run_sac(
                 env_name, args.n_games, args.norm_flow, args.wandb_key
             )
-            utils.plot_running_avg(history, env_name)
-            df = pd.DataFrame(metrics)
-            df.to_csv(f"metrics/{env_name}_metrics.csv", index=False)
             save_best_version(env_name, trained_agent)
