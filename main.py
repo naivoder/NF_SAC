@@ -54,8 +54,8 @@ def run_sac(args):
     else:
         save_str = "SAC"
 
-    if wandb_key:
-        with open(wandb_key, "r") as f:
+    if args.wandb_key:
+        with open(args.wandb_key, "r") as f:
             wandb_key = f.read().strip()
         wandb.login(key=wandb_key)
         run_name = f"{args.env}-{save_str}"
@@ -91,7 +91,7 @@ def run_sac(args):
                     best_avg_score = avg_score
                     agent.save_checkpoints()
 
-                if wandb_key:
+                if args.wandb_key:
                     wandb.log(
                         {
                             "score": scores[-1],
