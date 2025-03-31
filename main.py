@@ -15,18 +15,18 @@ environments = [
     "Pendulum-v1",
     "InvertedPendulum-v4",
     "InvertedDoublePendulum-v4",
-    "MountainCarContinuous-v0",
     "Reacher-v5",
-    "Swimmer-v3",
     "Pusher-v5",
+    "Humanoid-v5",
+    "Hopper-v5",
+    "Swimmer-v5",
+    "MountainCarContinuous-v0",
     "LunarLanderContinuous-v3",
     "BipedalWalker-v3",
-    "Hopper-v4",
-    "Walker2d-v4",
-    "HalfCheetah-v4",
-    "Ant-v4",
-    "Humanoid-v4",
-    "HumanoidStandup-v4",
+    "Walker2d-v5",
+    "HalfCheetah-v5",
+    "Ant-v5",
+    "HumanoidStandup-v5",
 ]
 
 
@@ -44,7 +44,7 @@ def run_sac(args):
         env.single_action_space,
         tau=5e-3,
         reward_scale=10,
-        batch_size=256,
+        batch_size=64,
         norm_flow=args.norm_flow,
         num_flows=args.num_flows,
     )
@@ -112,6 +112,8 @@ def run_sac(args):
 
         states = next_states
 
+    env.close()
+
     if args.wandb_key:
         wandb.finish()
     return agent, save_str
@@ -158,7 +160,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--num_envs",
-        default=8,
+        default=4,
         type=int,
         help="Number of environments to run in parallel",
     )
